@@ -33,7 +33,7 @@ def get_google_sheet_url(sheet_name):
     except:
         return None
 
-# --- FUNZIONE COLORAZIONE RIGHE ---
+# --- FUNZIONE COLORAZIONE RIGHE GIRONI E CLASSIFICA ---
 def colora_righe(row):
     valore_girone = ""
     for cella in row:
@@ -53,14 +53,38 @@ def colora_righe(row):
     }
     return [colori.get(valore_girone, '')] * len(row)
 
+# --- FUNZIONE COLORAZIONE TABELLONE FINALE ---
+def stile_tabellone_finale(df):
+    styles = pd.DataFrame('', index=df.index, columns=df.columns)
+    current_block = "blue"
+    
+    for i in range(len(df)):
+        fase_val = str(df.iloc[i, 0]).upper()
+        
+        if "POSIZIONI 9-16" in fase_val:
+            current_block = "red"
+        elif "POSIZIONI 1-8" in fase_val:
+            current_block = "blue"
+            
+        if current_block == "blue":
+            color = "background-color: #e3f2fd" if i % 2 == 0 else "background-color: #ffffff"
+        else:
+            color = "background-color: #ffebee" if i % 2 == 0 else "background-color: #ffffff"
+            
+        # Header di sezione in grigio
+        if any(x in fase_val for x in ["POSIZIONI", "QUARTI", "SEMI", "FINALE"]):
+            color = "background-color: #cfd8dc; font-weight: bold"
+            
+        styles.iloc[i, :] = color
+    return styles
+
 # --- FUNZIONE CARICAMENTO DATI ---
 @st.cache_data(ttl=60)
 def carica_dati(nome_foglio):
     try:
         url = get_google_sheet_url(nome_foglio)
         df = pd.read_csv(url)
-        
-        # Pulizia universale colonne Unnamed
+        # Rimuove solo le colonne completamente vuote create da Excel/Sheets
         df = df.loc[:, ~df.columns.astype(str).str.contains('Unnamed|nan|^$')]
 
         if nome_foglio == TAB_GARE_GIRONI:
@@ -68,20 +92,27 @@ def carica_dati(nome_foglio):
         elif nome_foglio == TAB_CLASSIFICA:
             df = df.iloc[:, :3]
         elif nome_foglio == TAB_PLAYOFF:
+            # Carica tutto fino alla colonna PERDENTE se esiste
             if "PERDENTE" in df.columns:
                 idx = df.columns.get_loc("PERDENTE")
                 df = df.iloc[:, :idx + 1]
         elif nome_foglio == TAB_FINALI:
+            # LOGICA CORRETTA PER TABELLONI FINALI:
+            # Se la prima riga contiene le intestazioni vere (Fase, ID Match...), la promuoviamo
             if not df.empty and 'Fase' not in df.columns:
                 df.columns = df.iloc[0]
                 df = df[1:].reset_index(drop=True)
+            
+            # Qui cerchiamo la colonna PERDENTE per assicurarci di visualizzare tutto il blocco
+            if "PERDENTE" in df.columns:
+                idx = df.columns.get_loc("PERDENTE")
+                df = df.iloc[:, :idx + 1]
 
-        # Pulizia decimali e conversione NaN in stringa vuota
-        df = df.fillna('') # Risolve il problema dei 'nan' visibili
+        # Pulizia dati
+        df = df.fillna('')
         df = df.map(lambda x: str(x)[:-2] if str(x).endswith('.0') else str(x).strip())
-        
         return df
-    except:
+    except Exception as e:
         return pd.DataFrame()
 
 # --- INTERFACCIA ---
@@ -103,28 +134,19 @@ with tab1:
     st.subheader("Classifica Gironi")
     df_c = carica_dati(TAB_CLASSIFICA)
     if not df_c.empty:
-        df_styled = df_c.style.apply(colora_righe, axis=1)
-        st.dataframe(
-            df_styled, 
-            use_container_width=True, 
-            hide_index=True,
-            column_config={
-                "Punti Totali": st.column_config.Column(
-                    "Punti Totali",
-                    width="small",
-                    required=True,
-                )
-            }
-        )
+        st.dataframe(df_c.style.apply(colora_righe, axis=1), use_container_width=True, hide_index=True)
 
 with tab2:
     st.subheader("Tabellone Playoff")
-    # Carichiamo i dati dei playoff assicurandoci che non ci siano nan
     df_p = carica_dati(TAB_PLAYOFF)
-    st.dataframe(df_p, use_container_width=True, hide_index=True)
+    if not df_p.empty:
+        st.dataframe(df_p, use_container_width=True, hide_index=True)
 
 with tab3:
     st.subheader("Tabelloni di Posizionamento Finale")
-    st.dataframe(carica_dati(TAB_FINALI), use_container_width=True, hide_index=True)
+    df_f = carica_dati(TAB_FINALI)
+    if not df_f.empty:
+        # Applichiamo lo stile e mostriamo tutte le colonne caricate (fino a PERDENTE)
+        st.dataframe(df_f.style.apply(stile_tabellone_finale, axis=None), use_container_width=True, hide_index=True)
 
 st.caption(f"Ultimo aggiornamento: {datetime.datetime.now().strftime('%H:%M:%S')}")
