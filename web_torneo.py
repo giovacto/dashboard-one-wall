@@ -61,18 +61,21 @@ def stile_tabellone_finale(df):
     for i in range(len(df)):
         fase_val = str(df.iloc[i, 0]).upper()
         
-        if "POSIZIONI 9-16" in fase_val:
+        # Cambio blocco colore se incontriamo la dicitura 9-16
+        if "9-16" in fase_val:
             current_block = "red"
-        elif "POSIZIONI 1-8" in fase_val:
+        elif "1-8" in fase_val:
             current_block = "blue"
             
+        # Determiniamo il colore base (blu o rosso pastello)
         if current_block == "blue":
             color = "background-color: #e3f2fd" if i % 2 == 0 else "background-color: #ffffff"
         else:
             color = "background-color: #ffebee" if i % 2 == 0 else "background-color: #ffffff"
             
-        if any(x in fase_val for x in ["POSIZIONI", "QUARTI", "SEMI", "FINALE"]):
-            color = "background-color: #cfd8dc; font-weight: bold"
+        # Se è una riga di titolo (Fase, Posizioni, Quarti, ecc.) mettiamo il grigio
+        if any(x in fase_val for x in ["POSIZIONI", "QUARTI", "SEMI", "FINALE", "MATCH"]):
+            color = "background-color: #cfd8dc; font-weight: bold; color: black;"
             
         styles.iloc[i, :] = color
     return styles
@@ -83,7 +86,10 @@ def carica_dati(nome_foglio):
     try:
         url = get_google_sheet_url(nome_foglio)
         df = pd.read_csv(url)
-        df = df.loc[:, ~df.columns.astype(str).str.contains('Unnamed|nan|^$')]
+        
+        # Pulizia colonne Unnamed (tranne per il tabellone finale che richiede le colonne punti)
+        if nome_foglio != TAB_FINALI:
+            df = df.loc[:, ~df.columns.astype(str).str.contains('Unnamed|nan|^$')]
 
         if nome_foglio == TAB_GARE_GIRONI:
             df = df.iloc[:, :11] 
@@ -94,13 +100,14 @@ def carica_dati(nome_foglio):
                 idx = df.columns.get_loc("PERDENTE")
                 df = df.iloc[:, :idx + 1]
         elif nome_foglio == TAB_FINALI:
-            if not df.empty and 'Fase' not in df.columns:
+            # Per il tabellone finale prendiamo le colonne necessarie inclusi i punti
+            df = df.iloc[:, :10] # Prende fino alla colonna TB_G1
+            if not df.empty and 'Fase' not in str(df.columns):
                 df.columns = df.iloc[0]
                 df = df[1:].reset_index(drop=True)
 
-        # Pulizia decimali e NaN
+        # Pulizia universale NaN e decimali .0
         df = df.fillna('')
-        # Convertiamo tutto in stringa per evitare allineamenti automatici numerici
         df = df.map(lambda x: str(x)[:-2] if str(x).endswith('.0') else str(x).strip())
         return df
     except:
@@ -125,19 +132,7 @@ with tab1:
     st.subheader("Classifica Gironi")
     df_c = carica_dati(TAB_CLASSIFICA)
     if not df_c.empty:
-        df_styled = df_c.style.apply(colora_righe, axis=1)
-        # Rimosso il parametro 'alignment' che causava l'errore
-        st.dataframe(
-            df_styled, 
-            use_container_width=True, 
-            hide_index=True,
-            column_config={
-                "Punti Totali": st.column_config.Column(
-                    "Punti Totali",
-                    width="small"
-                )
-            }
-        )
+        st.dataframe(df_c.style.apply(colora_righe, axis=1), use_container_width=True, hide_index=True)
 
 with tab2:
     st.subheader("Tabellone Playoff")
@@ -147,6 +142,7 @@ with tab3:
     st.subheader("Tabelloni di Posizionamento Finale")
     df_f = carica_dati(TAB_FINALI)
     if not df_f.empty:
+        # Applichiamo lo stile bicolore alternato
         st.dataframe(df_f.style.apply(stile_tabellone_finale, axis=None), use_container_width=True, hide_index=True)
 
 st.caption(f"Ultimo aggiornamento: {datetime.datetime.now().strftime('%H:%M:%S')}")
