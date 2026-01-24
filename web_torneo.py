@@ -33,7 +33,7 @@ def get_google_sheet_url(sheet_name):
     except:
         return None
 
-# --- FUNZIONE COLORAZIONE RIGHE ---
+# --- FUNZIONE COLORAZIONE RIGHE GIRONI E CLASSIFICA ---
 def colora_righe(row):
     valore_girone = ""
     for cella in row:
@@ -53,14 +53,39 @@ def colora_righe(row):
     }
     return [colori.get(valore_girone, '')] * len(row)
 
+# --- FUNZIONE COLORAZIONE TABELLONE FINALE (Alternata Blu/Rosso) ---
+def stile_tabellone_finale(df):
+    styles = pd.DataFrame('', index=df.index, columns=df.columns)
+    current_block = "blue" # Iniziamo con il blocco 1-8
+    
+    for i in range(len(df)):
+        fase_val = str(df.iloc[i, 0]).upper()
+        
+        # Individua il passaggio alla sezione 9-16
+        if "POSIZIONI 9-16" in fase_val:
+            current_block = "red"
+        elif "POSIZIONI 1-8" in fase_val:
+            current_block = "blue"
+            
+        # Logica alternanza colori
+        if current_block == "blue":
+            color = "background-color: #e3f2fd" if i % 2 == 0 else "background-color: #ffffff"
+        else:
+            color = "background-color: #ffebee" if i % 2 == 0 else "background-color: #ffffff"
+            
+        # Evidenzia i titoli delle fasi (Quarti, Semi, ecc.) in grigio
+        if any(x in fase_val for x in ["POSIZIONI", "QUARTI", "SEMI", "FINALE"]):
+            color = "background-color: #cfd8dc; font-weight: bold"
+            
+        styles.iloc[i, :] = color
+    return styles
+
 # --- FUNZIONE CARICAMENTO DATI ---
 @st.cache_data(ttl=60)
 def carica_dati(nome_foglio):
     try:
         url = get_google_sheet_url(nome_foglio)
         df = pd.read_csv(url)
-        
-        # Pulizia universale colonne Unnamed
         df = df.loc[:, ~df.columns.astype(str).str.contains('Unnamed|nan|^$')]
 
         if nome_foglio == TAB_GARE_GIRONI:
@@ -76,10 +101,9 @@ def carica_dati(nome_foglio):
                 df.columns = df.iloc[0]
                 df = df[1:].reset_index(drop=True)
 
-        # Pulizia decimali e conversione NaN in stringa vuota
-        df = df.fillna('') # Risolve il problema dei 'nan' visibili
+        # Pulizia decimali e NaN
+        df = df.fillna('')
         df = df.map(lambda x: str(x)[:-2] if str(x).endswith('.0') else str(x).strip())
-        
         return df
     except:
         return pd.DataFrame()
@@ -111,20 +135,21 @@ with tab1:
             column_config={
                 "Punti Totali": st.column_config.Column(
                     "Punti Totali",
-                    width="small",
-                    required=True,
+                    alignment="center", # Centra il testo nella colonna
+                    width="small"
                 )
             }
         )
 
 with tab2:
     st.subheader("Tabellone Playoff")
-    # Carichiamo i dati dei playoff assicurandoci che non ci siano nan
-    df_p = carica_dati(TAB_PLAYOFF)
-    st.dataframe(df_p, use_container_width=True, hide_index=True)
+    st.dataframe(carica_dati(TAB_PLAYOFF), use_container_width=True, hide_index=True)
 
 with tab3:
     st.subheader("Tabelloni di Posizionamento Finale")
-    st.dataframe(carica_dati(TAB_FINALI), use_container_width=True, hide_index=True)
+    df_f = carica_dati(TAB_FINALI)
+    if not df_f.empty:
+        # Applica lo stile alternato (Blu per 1-8, Rosso per 9-16)
+        st.dataframe(df_f.style.apply(stile_tabellone_finale, axis=None), use_container_width=True, hide_index=True)
 
 st.caption(f"Ultimo aggiornamento: {datetime.datetime.now().strftime('%H:%M:%S')}")
