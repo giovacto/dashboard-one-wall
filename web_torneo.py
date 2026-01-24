@@ -4,13 +4,6 @@ import datetime
 
 # 1. CONFIGURAZIONE PAGINA
 st.set_page_config(page_title="Dashboard Torneo One Wall", layout="wide")
-st.markdown("""
-    <style>
-    #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
-    </style>
-    """, unsafe_allow_html=True)
 
 # --- 🟢 CONFIGURAZIONE GOOGLE SHEETS 🟢 ---
 URL_GOOGLE_SHEET = "https://docs.google.com/spreadsheets/d/1Cy0Splr65TWOD-F7PpLb1K_1fw7du_x1HvctafKkXv0/edit?usp=sharing"
@@ -20,6 +13,21 @@ TAB_CLASSIFICA = 'Classifica Automatica'
 TAB_PLAYOFF = 'PLAYOFF_INIZIO'
 TAB_FINALI = 'TABELLONI_FINALI'
 
+# --- CSS PER ESTETICA E ALLINEAMENTO PUNTI ---
+st.markdown("""
+<style>
+    /* Nasconde i menu di sistema per un look professionale */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    
+    /* Tabelle standard */
+    table { border-collapse: collapse !important; width: 100%; }
+    th { background-color: #f8f9fa !important; border: 1px solid #dee2e6 !important; text-align: left !important; }
+    td { border: 1px solid #dee2e6 !important; padding: 8px !important; text-align: left !important; }
+</style>
+""", unsafe_allow_html=True)
+
 # --- FUNZIONE PER COSTRUIRE IL LINK DI ESPORTAZIONE ---
 def get_google_sheet_url(sheet_name):
     try:
@@ -28,9 +36,15 @@ def get_google_sheet_url(sheet_name):
     except:
         return None
 
-# --- FUNZIONE COLORAZIONE GIRONI ---
-def colora_righe_gironi(row):
-    valore_girone = str(row.iloc[0])
+# --- FUNZIONE COLORAZIONE RIGHE (Valida per Gare e Classifica) ---
+def colora_righe(row):
+    # Cerca il valore del girone nella riga (funziona sia se è in colonna 0 che 1)
+    valore_girone = ""
+    for cella in row:
+        if "Girone" in str(cella):
+            valore_girone = str(cella)
+            break
+            
     colori = {
         'Girone 1': 'background-color: #fce4ec',
         'Girone 2': 'background-color: #e8f5e9',
@@ -44,7 +58,7 @@ def colora_righe_gironi(row):
     return [colori.get(valore_girone, '')] * len(row)
 
 # --- FUNZIONE CARICAMENTO DATI ---
-@st.cache_data(ttl=60) # Aggiorna ogni minuto
+@st.cache_data(ttl=60)
 def carica_dati(nome_foglio):
     try:
         url = get_google_sheet_url(nome_foglio)
@@ -67,7 +81,7 @@ def carica_dati(nome_foglio):
                 df = df[1:].reset_index(drop=True)
             df = df.loc[:, ~df.columns.astype(str).str.contains('Unnamed|nan|^$')]
 
-        # Pulizia decimali (usa map invece di applymap per evitare avvisi)
+        # Pulizia decimali
         df = df.map(lambda x: str(x)[:-2] if str(x).endswith('.0') else x)
         return df.fillna('')
     except:
@@ -83,18 +97,25 @@ if st.sidebar.button("🔄 Aggiorna Dati Live"):
 tab_gare, tab1, tab2, tab3 = st.tabs(["🎾 Gare Gironi", "📊 Classifiche", "⚔️ Playoff", "🏁 Tabelloni Finali"])
 
 with tab_gare:
+    st.subheader("Andamento Gare e Punteggi Live")
     df_g = carica_dati(TAB_GARE_GIRONI)
     if not df_g.empty:
-        st.dataframe(df_g.style.apply(colora_righe_gironi, axis=1), use_container_width=True, hide_index=True)
+        st.dataframe(df_g.style.apply(colora_righe, axis=1), use_container_width=True, hide_index=True)
 
 with tab1:
-    st.dataframe(carica_dati(TAB_CLASSIFICA), use_container_width=True, hide_index=True)
+    st.subheader("Classifica Gironi")
+    df_c = carica_dati(TAB_CLASSIFICA)
+    if not df_c.empty:
+        # Applichiamo i colori e centramento della colonna Punti
+        df_styled = df_c.style.apply(colora_righe, axis=1).set_properties(subset=['Punti Totali'], **{'text-align': 'center'})
+        st.dataframe(df_styled, use_container_width=True, hide_index=True)
 
 with tab2:
+    st.subheader("Tabellone Playoff")
     st.dataframe(carica_dati(TAB_PLAYOFF), use_container_width=True, hide_index=True)
 
 with tab3:
+    st.subheader("Tabelloni di Posizionamento Finale")
     st.dataframe(carica_dati(TAB_FINALI), use_container_width=True, hide_index=True)
 
 st.caption(f"Ultimo aggiornamento: {datetime.datetime.now().strftime('%H:%M:%S')}")
-
