@@ -4,6 +4,13 @@ import datetime
 
 # 1. CONFIGURAZIONE PAGINA
 st.set_page_config(page_title="Dashboard Torneo One Wall", layout="wide")
+st.markdown("""
+    <style>
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    </style>
+    """, unsafe_allow_html=True)
 
 # --- 🟢 CONFIGURAZIONE GOOGLE SHEETS 🟢 ---
 URL_GOOGLE_SHEET = "https://docs.google.com/spreadsheets/d/1Cy0Splr65TWOD-F7PpLb1K_1fw7du_x1HvctafKkXv0/edit?usp=sharing"
@@ -90,3 +97,4 @@ with tab3:
     st.dataframe(carica_dati(TAB_FINALI), use_container_width=True, hide_index=True)
 
 st.caption(f"Ultimo aggiornamento: {datetime.datetime.now().strftime('%H:%M:%S')}")
+
