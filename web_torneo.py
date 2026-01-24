@@ -13,15 +13,12 @@ TAB_CLASSIFICA = 'Classifica Automatica'
 TAB_PLAYOFF = 'PLAYOFF_INIZIO'
 TAB_FINALI = 'TABELLONI_FINALI'
 
-# --- CSS PER ESTETICA E ALLINEAMENTO PUNTI ---
+# --- CSS PER ESTETICA E PULIZIA ---
 st.markdown("""
 <style>
-    /* Nasconde i menu di sistema per un look professionale */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
-    
-    /* Tabelle standard */
     table { border-collapse: collapse !important; width: 100%; }
     th { background-color: #f8f9fa !important; border: 1px solid #dee2e6 !important; text-align: left !important; }
     td { border: 1px solid #dee2e6 !important; padding: 8px !important; text-align: left !important; }
@@ -36,9 +33,8 @@ def get_google_sheet_url(sheet_name):
     except:
         return None
 
-# --- FUNZIONE COLORAZIONE RIGHE (Valida per Gare e Classifica) ---
+# --- FUNZIONE COLORAZIONE RIGHE ---
 def colora_righe(row):
-    # Cerca il valore del girone nella riga (funziona sia se è in colonna 0 che 1)
     valore_girone = ""
     for cella in row:
         if "Girone" in str(cella):
@@ -63,8 +59,6 @@ def carica_dati(nome_foglio):
     try:
         url = get_google_sheet_url(nome_foglio)
         df = pd.read_csv(url)
-        
-        # Pulizia universale colonne Unnamed
         df = df.loc[:, ~df.columns.astype(str).str.contains('Unnamed|nan|^$')]
 
         if nome_foglio == TAB_GARE_GIRONI:
@@ -81,8 +75,8 @@ def carica_dati(nome_foglio):
                 df = df[1:].reset_index(drop=True)
             df = df.loc[:, ~df.columns.astype(str).str.contains('Unnamed|nan|^$')]
 
-        # Pulizia decimali
-        df = df.map(lambda x: str(x)[:-2] if str(x).endswith('.0') else x)
+        # Pulizia decimali e spazi
+        df = df.map(lambda x: str(x)[:-2] if str(x).endswith('.0') else str(x).strip())
         return df.fillna('')
     except:
         return pd.DataFrame()
@@ -106,9 +100,22 @@ with tab1:
     st.subheader("Classifica Gironi")
     df_c = carica_dati(TAB_CLASSIFICA)
     if not df_c.empty:
-        # Applichiamo i colori e centramento della colonna Punti
-        df_styled = df_c.style.apply(colora_righe, axis=1).set_properties(subset=['Punti Totali'], **{'text-align': 'center'})
-        st.dataframe(df_styled, use_container_width=True, hide_index=True)
+        # Applichiamo lo stile dei colori
+        df_styled = df_c.style.apply(colora_righe, axis=1)
+        # Usiamo column_config per forzare il centramento dei Punti Totali
+        st.dataframe(
+            df_styled, 
+            use_container_width=True, 
+            hide_index=True,
+            column_config={
+                "Punti Totali": st.column_config.Column(
+                    "Punti Totali",
+                    help="Punteggio accumulato",
+                    width="medium",
+                    required=True,
+                )
+            }
+        )
 
 with tab2:
     st.subheader("Tabellone Playoff")
