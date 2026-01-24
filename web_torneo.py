@@ -14,14 +14,15 @@ TAB_PLAYOFF = 'PLAYOFF_INIZIO'
 TAB_FINALI = 'TABELLONI_FINALI'
 
 # --- CSS PER ESTETICA E PULIZIA ---
+# Ho rimosso il grigio forzato dalle tabelle
 st.markdown("""
 <style>
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
-    table { border-collapse: collapse !important; width: 100%; }
-    th { background-color: #f8f9fa !important; border: 1px solid #dee2e6 !important; text-align: left !important; }
-    td { border: 1px solid #dee2e6 !important; padding: 8px !important; text-align: left !important; }
+    table { border-collapse: collapse !important; width: 100%; background-color: white !important; }
+    th { background-color: #f8f9fa !important; border: 1px solid #dee2e6 !important; text-align: left !important; color: black !important; }
+    td { border: 1px solid #dee2e6 !important; padding: 8px !important; text-align: left !important; background-color: white !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -33,7 +34,7 @@ def get_google_sheet_url(sheet_name):
     except:
         return None
 
-# --- FUNZIONE COLORAZIONE RIGHE GIRONI E CLASSIFICA ---
+# --- FUNZIONE COLORAZIONE RIGHE GIRONI E CLASSIFICA (Mantenuta) ---
 def colora_righe(row):
     valore_girone = ""
     for cella in row:
@@ -53,66 +54,39 @@ def colora_righe(row):
     }
     return [colori.get(valore_girone, '')] * len(row)
 
-# --- FUNZIONE COLORAZIONE TABELLONE FINALE ---
-def stile_tabellone_finale(df):
-    styles = pd.DataFrame('', index=df.index, columns=df.columns)
-    current_block = "blue"
-    
-    for i in range(len(df)):
-        fase_val = str(df.iloc[i, 0]).upper()
-        
-        if "POSIZIONI 9-16" in fase_val:
-            current_block = "red"
-        elif "POSIZIONI 1-8" in fase_val:
-            current_block = "blue"
-            
-        if current_block == "blue":
-            color = "background-color: #e3f2fd" if i % 2 == 0 else "background-color: #ffffff"
-        else:
-            color = "background-color: #ffebee" if i % 2 == 0 else "background-color: #ffffff"
-            
-        # Header di sezione in grigio
-        if any(x in fase_val for x in ["POSIZIONI", "QUARTI", "SEMI", "FINALE"]):
-            color = "background-color: #cfd8dc; font-weight: bold"
-            
-        styles.iloc[i, :] = color
-    return styles
-
 # --- FUNZIONE CARICAMENTO DATI ---
 @st.cache_data(ttl=60)
 def carica_dati(nome_foglio):
     try:
         url = get_google_sheet_url(nome_foglio)
         df = pd.read_csv(url)
-        # Rimuove solo le colonne completamente vuote create da Excel/Sheets
-        df = df.loc[:, ~df.columns.astype(str).str.contains('Unnamed|nan|^$')]
+        
+        # Pulizia colonne Unnamed ma manteniamo quelle con dati
+        df = df.loc[:, ~df.columns.astype(str).str.contains('^Unnamed: [1-9][0-9]*$|nan')]
 
         if nome_foglio == TAB_GARE_GIRONI:
             df = df.iloc[:, :11] 
         elif nome_foglio == TAB_CLASSIFICA:
             df = df.iloc[:, :3]
-        elif nome_foglio == TAB_PLAYOFF:
-            # Carica tutto fino alla colonna PERDENTE se esiste
-            if "PERDENTE" in df.columns:
-                idx = df.columns.get_loc("PERDENTE")
-                df = df.iloc[:, :idx + 1]
         elif nome_foglio == TAB_FINALI:
-            # LOGICA CORRETTA PER TABELLONI FINALI:
-            # Se la prima riga contiene le intestazioni vere (Fase, ID Match...), la promuoviamo
-            if not df.empty and 'Fase' not in df.columns:
+            # Rinominiamo le colonne usando la riga 1 dello sheet se "Fase" non è rilevata correttamente
+            if 'Fase' not in df.columns:
                 df.columns = df.iloc[0]
                 df = df[1:].reset_index(drop=True)
             
-            # Qui cerchiamo la colonna PERDENTE per assicurarci di visualizzare tutto il blocco
+            # Cerchiamo l'indice della colonna PERDENTE per non tagliare il foglio prima
             if "PERDENTE" in df.columns:
-                idx = df.columns.get_loc("PERDENTE")
-                df = df.iloc[:, :idx + 1]
+                col_idx = df.columns.get_loc("PERDENTE")
+                df = df.iloc[:, :col_idx + 1]
+            else:
+                # Se non trova la parola esatta, prende le prime 13 colonne (fino a M nello screenshot)
+                df = df.iloc[:, :13]
 
-        # Pulizia dati
+        # Pulizia finale
         df = df.fillna('')
         df = df.map(lambda x: str(x)[:-2] if str(x).endswith('.0') else str(x).strip())
         return df
-    except Exception as e:
+    except:
         return pd.DataFrame()
 
 # --- INTERFACCIA ---
@@ -146,7 +120,7 @@ with tab3:
     st.subheader("Tabelloni di Posizionamento Finale")
     df_f = carica_dati(TAB_FINALI)
     if not df_f.empty:
-        # Applichiamo lo stile e mostriamo tutte le colonne caricate (fino a PERDENTE)
-        st.dataframe(df_f.style.apply(stile_tabellone_finale, axis=None), use_container_width=True, hide_index=True)
+        # Visualizzazione pulita senza stili di sfondo grigio, solo tabelle bianche e nere
+        st.dataframe(df_f, use_container_width=True, hide_index=True)
 
 st.caption(f"Ultimo aggiornamento: {datetime.datetime.now().strftime('%H:%M:%S')}")
