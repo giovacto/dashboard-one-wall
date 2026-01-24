@@ -19,7 +19,6 @@ st.markdown("""
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
-    /* Forza sfondo bianco su tutto */
     .stDataFrame, div[data-testid="stTable"] { background-color: white !important; }
     table { border-collapse: collapse !important; width: 100%; }
     th { background-color: #f0f2f6 !important; border: 1px solid #dee2e6 !important; text-align: center !important; color: black !important; }
@@ -27,7 +26,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- FUNZIONE LINK GOOGLE ---
 def get_google_sheet_url(sheet_name):
     try:
         sheet_id = URL_GOOGLE_SHEET.split("/d/")[1].split("/")[0]
@@ -35,7 +33,6 @@ def get_google_sheet_url(sheet_name):
     except:
         return None
 
-# --- FUNZIONE COLORAZIONE GIRONI (Rimane come la volevi) ---
 def colora_righe(row):
     valore_girone = ""
     for cella in row:
@@ -50,24 +47,19 @@ def colora_righe(row):
     }
     return [colori.get(valore_girone, '')] * len(row)
 
-# --- FUNZIONE CARICAMENTO DATI (Corretta per Tabelloni Finali) ---
+# --- FUNZIONE CARICAMENTO DATI (Corretta per evitare errore NaN/JSON) ---
 @st.cache_data(ttl=30)
 def carica_dati(nome_foglio):
     try:
         url = get_google_sheet_url(nome_foglio)
-        # Leggiamo il CSV senza intestazioni predefinite per gestire le righe vuote di Google
+        # Leggiamo il CSV
         df = pd.read_csv(url, header=None)
 
         if nome_foglio == TAB_FINALI:
-            # 1. Prendiamo le colonne dalla A alla M (indice 0 a 12)
+            # Prendiamo le colonne dalla A alla M (0:13)
             df = df.iloc[:, 0:13]
-            
-            # 2. La riga 2 del foglio (indice 1) contiene le vere intestazioni: Fase, ID Match, ecc.
-            # La riga 1 (indice 0) contiene Column1, Column2... la saltiamo.
-            nuove_colonne = df.iloc[1].tolist()
-            df.columns = nuove_colonne
-            
-            # 3. Teniamo i dati dalla riga 3 in poi (indice 2)
+            # Impostiamo la riga 2 come testata
+            df.columns = df.iloc[1].fillna('').astype(str).tolist()
             df = df.iloc[2:].reset_index(drop=True)
             
         elif nome_foglio == TAB_GARE_GIRONI:
@@ -77,9 +69,11 @@ def carica_dati(nome_foglio):
         else:
             df = pd.read_csv(url)
 
-        # Pulizia NaN e decimali .0
-        df = df.fillna('')
-        df = df.astype(str).map(lambda x: x[:-2] if x.endswith('.0') else x.strip())
+        # --- SOLUZIONE ERRORE JSON: Trasformiamo tutto in stringa pulita ---
+        df = df.fillna('') # Sostituisce i NaN con vuoto
+        df = df.astype(str) # Forza tutto a stringa
+        # Rimuove il fastidioso .0 dai numeri
+        df = df.map(lambda x: x[:-2] if x.endswith('.0') else x)
         return df
     except Exception as e:
         return pd.DataFrame()
@@ -111,7 +105,7 @@ with tab3:
     st.subheader("Tabelloni di Posizionamento Finale")
     df_f = carica_dati(TAB_FINALI)
     if not df_f.empty:
-        # Visualizzazione pulita Bianco/Nero, con tutte le colonne fino a PERDENTE
+        # Visualizzazione sicura senza NaN
         st.dataframe(df_f, use_container_width=True, hide_index=True)
 
 st.caption(f"Ultimo aggiornamento: {datetime.datetime.now().strftime('%H:%M:%S')}")
