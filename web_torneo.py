@@ -59,6 +59,8 @@ def carica_dati(nome_foglio):
     try:
         url = get_google_sheet_url(nome_foglio)
         df = pd.read_csv(url)
+        
+        # Pulizia universale colonne Unnamed
         df = df.loc[:, ~df.columns.astype(str).str.contains('Unnamed|nan|^$')]
 
         if nome_foglio == TAB_GARE_GIRONI:
@@ -73,11 +75,12 @@ def carica_dati(nome_foglio):
             if not df.empty and 'Fase' not in df.columns:
                 df.columns = df.iloc[0]
                 df = df[1:].reset_index(drop=True)
-            df = df.loc[:, ~df.columns.astype(str).str.contains('Unnamed|nan|^$')]
 
-        # Pulizia decimali e spazi
+        # Pulizia decimali e conversione NaN in stringa vuota
+        df = df.fillna('') # Risolve il problema dei 'nan' visibili
         df = df.map(lambda x: str(x)[:-2] if str(x).endswith('.0') else str(x).strip())
-        return df.fillna('')
+        
+        return df
     except:
         return pd.DataFrame()
 
@@ -100,9 +103,7 @@ with tab1:
     st.subheader("Classifica Gironi")
     df_c = carica_dati(TAB_CLASSIFICA)
     if not df_c.empty:
-        # Applichiamo lo stile dei colori
         df_styled = df_c.style.apply(colora_righe, axis=1)
-        # Usiamo column_config per forzare il centramento dei Punti Totali
         st.dataframe(
             df_styled, 
             use_container_width=True, 
@@ -110,8 +111,7 @@ with tab1:
             column_config={
                 "Punti Totali": st.column_config.Column(
                     "Punti Totali",
-                    help="Punteggio accumulato",
-                    width="medium",
+                    width="small",
                     required=True,
                 )
             }
@@ -119,7 +119,9 @@ with tab1:
 
 with tab2:
     st.subheader("Tabellone Playoff")
-    st.dataframe(carica_dati(TAB_PLAYOFF), use_container_width=True, hide_index=True)
+    # Carichiamo i dati dei playoff assicurandoci che non ci siano nan
+    df_p = carica_dati(TAB_PLAYOFF)
+    st.dataframe(df_p, use_container_width=True, hide_index=True)
 
 with tab3:
     st.subheader("Tabelloni di Posizionamento Finale")
