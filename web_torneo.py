@@ -56,24 +56,21 @@ def colora_righe(row):
 # --- FUNZIONE COLORAZIONE TABELLONE FINALE (Alternata Blu/Rosso) ---
 def stile_tabellone_finale(df):
     styles = pd.DataFrame('', index=df.index, columns=df.columns)
-    current_block = "blue" # Iniziamo con il blocco 1-8
+    current_block = "blue"
     
     for i in range(len(df)):
         fase_val = str(df.iloc[i, 0]).upper()
         
-        # Individua il passaggio alla sezione 9-16
         if "POSIZIONI 9-16" in fase_val:
             current_block = "red"
         elif "POSIZIONI 1-8" in fase_val:
             current_block = "blue"
             
-        # Logica alternanza colori
         if current_block == "blue":
             color = "background-color: #e3f2fd" if i % 2 == 0 else "background-color: #ffffff"
         else:
             color = "background-color: #ffebee" if i % 2 == 0 else "background-color: #ffffff"
             
-        # Evidenzia i titoli delle fasi (Quarti, Semi, ecc.) in grigio
         if any(x in fase_val for x in ["POSIZIONI", "QUARTI", "SEMI", "FINALE"]):
             color = "background-color: #cfd8dc; font-weight: bold"
             
@@ -103,6 +100,7 @@ def carica_dati(nome_foglio):
 
         # Pulizia decimali e NaN
         df = df.fillna('')
+        # Convertiamo tutto in stringa per evitare allineamenti automatici numerici
         df = df.map(lambda x: str(x)[:-2] if str(x).endswith('.0') else str(x).strip())
         return df
     except:
@@ -128,6 +126,7 @@ with tab1:
     df_c = carica_dati(TAB_CLASSIFICA)
     if not df_c.empty:
         df_styled = df_c.style.apply(colora_righe, axis=1)
+        # Rimosso il parametro 'alignment' che causava l'errore
         st.dataframe(
             df_styled, 
             use_container_width=True, 
@@ -135,7 +134,6 @@ with tab1:
             column_config={
                 "Punti Totali": st.column_config.Column(
                     "Punti Totali",
-                    alignment="center", # Centra il testo nella colonna
                     width="small"
                 )
             }
@@ -149,7 +147,6 @@ with tab3:
     st.subheader("Tabelloni di Posizionamento Finale")
     df_f = carica_dati(TAB_FINALI)
     if not df_f.empty:
-        # Applica lo stile alternato (Blu per 1-8, Rosso per 9-16)
         st.dataframe(df_f.style.apply(stile_tabellone_finale, axis=None), use_container_width=True, hide_index=True)
 
 st.caption(f"Ultimo aggiornamento: {datetime.datetime.now().strftime('%H:%M:%S')}")
