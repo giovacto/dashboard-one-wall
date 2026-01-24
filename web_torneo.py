@@ -13,7 +13,7 @@ TAB_CLASSIFICA = 'Classifica Automatica'
 TAB_PLAYOFF = 'PLAYOFF_INIZIO'
 TAB_FINALI = 'TABELLONI_FINALI'
 
-# --- CSS PER ESTETICA E PULIZIA ---
+# --- CSS PER ESTETICA ---
 st.markdown("""
 <style>
     #MainMenu {visibility: hidden;}
@@ -25,7 +25,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --- FUNZIONE PER COSTRUIRE IL LINK DI ESPORTAZIONE ---
+# --- FUNZIONI DI SUPPORTO ---
 def get_google_sheet_url(sheet_name):
     try:
         sheet_id = URL_GOOGLE_SHEET.split("/d/")[1].split("/")[0]
@@ -33,82 +33,62 @@ def get_google_sheet_url(sheet_name):
     except:
         return None
 
-# --- FUNZIONE COLORAZIONE RIGHE GIRONI E CLASSIFICA ---
 def colora_righe(row):
     valore_girone = ""
     for cella in row:
         if "Girone" in str(cella):
             valore_girone = str(cella)
             break
-            
     colori = {
-        'Girone 1': 'background-color: #fce4ec',
-        'Girone 2': 'background-color: #e8f5e9',
-        'Girone 3': 'background-color: #e3f2fd',
-        'Girone 4': 'background-color: #fffde7',
-        'Girone 5': 'background-color: #f3e5f5',
-        'Girone 6': 'background-color: #e0f7fa',
-        'Girone 7': 'background-color: #fff3e0',
-        'Girone 8': 'background-color: #efebe9'
+        'Girone 1': 'background-color: #fce4ec', 'Girone 2': 'background-color: #e8f5e9',
+        'Girone 3': 'background-color: #e3f2fd', 'Girone 4': 'background-color: #fffde7',
+        'Girone 5': 'background-color: #f3e5f5', 'Girone 6': 'background-color: #e0f7fa',
+        'Girone 7': 'background-color: #fff3e0', 'Girone 8': 'background-color: #efebe9'
     }
     return [colori.get(valore_girone, '')] * len(row)
 
-# --- FUNZIONE COLORAZIONE TABELLONE FINALE (Alternata Blu/Rosso) ---
 def stile_tabellone_finale(df):
     styles = pd.DataFrame('', index=df.index, columns=df.columns)
     current_block = "blue"
-    
     for i in range(len(df)):
         fase_val = str(df.iloc[i, 0]).upper()
+        if "9-16" in fase_val: current_block = "red"
+        elif "1-8" in fase_val: current_block = "blue"
         
-        # Cambio blocco colore se incontriamo la dicitura 9-16
-        if "9-16" in fase_val:
-            current_block = "red"
-        elif "1-8" in fase_val:
-            current_block = "blue"
-            
-        # Determiniamo il colore base (blu o rosso pastello)
         if current_block == "blue":
             color = "background-color: #e3f2fd" if i % 2 == 0 else "background-color: #ffffff"
         else:
             color = "background-color: #ffebee" if i % 2 == 0 else "background-color: #ffffff"
-            
-        # Se è una riga di titolo (Fase, Posizioni, Quarti, ecc.) mettiamo il grigio
+        
         if any(x in fase_val for x in ["POSIZIONI", "QUARTI", "SEMI", "FINALE", "MATCH"]):
             color = "background-color: #cfd8dc; font-weight: bold; color: black;"
-            
         styles.iloc[i, :] = color
     return styles
 
-# --- FUNZIONE CARICAMENTO DATI ---
+# --- CARICAMENTO E PULIZIA DATI ---
 @st.cache_data(ttl=60)
 def carica_dati(nome_foglio):
     try:
         url = get_google_sheet_url(nome_foglio)
         df = pd.read_csv(url)
         
-        # Pulizia colonne Unnamed (tranne per il tabellone finale che richiede le colonne punti)
-        if nome_foglio != TAB_FINALI:
-            df = df.loc[:, ~df.columns.astype(str).str.contains('Unnamed|nan|^$')]
-
-        if nome_foglio == TAB_GARE_GIRONI:
-            df = df.iloc[:, :11] 
-        elif nome_foglio == TAB_CLASSIFICA:
-            df = df.iloc[:, :3]
+        # Filtro colonne specifico
+        if nome_foglio == TAB_GARE_GIRONI: df = df.iloc[:, :11]
+        elif nome_foglio == TAB_CLASSIFICA: df = df.iloc[:, :3]
         elif nome_foglio == TAB_PLAYOFF:
             if "PERDENTE" in df.columns:
                 idx = df.columns.get_loc("PERDENTE")
                 df = df.iloc[:, :idx + 1]
         elif nome_foglio == TAB_FINALI:
-            # Per il tabellone finale prendiamo le colonne necessarie inclusi i punti
-            df = df.iloc[:, :10] # Prende fino alla colonna TB_G1
+            df = df.iloc[:, :10] # Include colonne punti
             if not df.empty and 'Fase' not in str(df.columns):
                 df.columns = df.iloc[0]
                 df = df[1:].reset_index(drop=True)
 
-        # Pulizia universale NaN e decimali .0
+        # 🛑 SOLUZIONE AL SyntaxError: Trasformiamo TUTTO in testo subito
         df = df.fillna('')
-        df = df.map(lambda x: str(x)[:-2] if str(x).endswith('.0') else str(x).strip())
+        df = df.astype(str)
+        df = df.map(lambda x: x[:-2] if x.endswith('.0') else x.strip())
         return df
     except:
         return pd.DataFrame()
@@ -123,26 +103,21 @@ if st.sidebar.button("🔄 Aggiorna Dati Live"):
 tab_gare, tab1, tab2, tab3 = st.tabs(["🎾 Gare Gironi", "📊 Classifiche", "⚔️ Playoff", "🏁 Tabelloni Finali"])
 
 with tab_gare:
-    st.subheader("Andamento Gare e Punteggi Live")
     df_g = carica_dati(TAB_GARE_GIRONI)
     if not df_g.empty:
         st.dataframe(df_g.style.apply(colora_righe, axis=1), use_container_width=True, hide_index=True)
 
 with tab1:
-    st.subheader("Classifica Gironi")
     df_c = carica_dati(TAB_CLASSIFICA)
     if not df_c.empty:
         st.dataframe(df_c.style.apply(colora_righe, axis=1), use_container_width=True, hide_index=True)
 
 with tab2:
-    st.subheader("Tabellone Playoff")
     st.dataframe(carica_dati(TAB_PLAYOFF), use_container_width=True, hide_index=True)
 
 with tab3:
-    st.subheader("Tabelloni di Posizionamento Finale")
     df_f = carica_dati(TAB_FINALI)
     if not df_f.empty:
-        # Applichiamo lo stile bicolore alternato
         st.dataframe(df_f.style.apply(stile_tabellone_finale, axis=None), use_container_width=True, hide_index=True)
 
-st.caption(f"Ultimo aggiornamento: {datetime.datetime.now().strftime('%H:%M:%S')}")
+st.caption(f"Sincronizzato: {datetime.datetime.now().strftime('%H:%M:%S')}")
