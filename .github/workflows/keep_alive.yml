@@ -30,11 +30,11 @@ jobs:
           with sync_playwright() as p:
               browser = p.chromium.launch(headless=True)
               page = browser.new_page()
-              # SOSTITUISCI L'URL QUI SOTTO CON QUELLO DELLA TUA APP
-              url = 'https://dashboard-one-wall-8nzuh5q9skdycad8o27lcd.streamlit.app/
+              # URL SISTEMATO QUI SOTTO
+              url = 'https://dashboard-one-wall-8nzuh5q9skdycad8o27lcd.streamlit.app/'
               print(f'Visitando {url}...')
               page.goto(url, wait_until='networkidle')
-              page.wait_for_timeout(5000) # Aspetta 5 secondi per caricare i widget
+              page.wait_for_timeout(5000) 
               print('Pagina caricata con successo!')
               browser.close()
           "
