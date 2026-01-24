@@ -1,0 +1,25 @@
+name: Keep App Awake
+
+on:
+  schedule:
+    # Esegue l'azione ogni 6 ore
+    - cron: '0 */6 * * *'
+  workflow_dispatch: # Ti permette di avviarlo a mano se serve
+
+jobs:
+  auto-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Update last_run.txt
+        run: date > last_run.txt
+
+      - name: Commit and Push changes
+        run: |
+          git config --global user.name "GitHub Action"
+          git config --global user.email "action@github.com"
+          git add last_run.txt
+          git commit -m "Keep alive: auto-update" || exit 0
+          git push
