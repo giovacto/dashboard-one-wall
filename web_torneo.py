@@ -13,16 +13,15 @@ TAB_CLASSIFICA = 'Classifica Automatica'
 TAB_PLAYOFF = 'PLAYOFF_INIZIO'
 TAB_FINALI = 'TABELLONI_FINALI'
 
-# --- CSS PER PULIZIA TOTALE (Rimosso ogni grigio) ---
+# --- CSS PER PULIZIA ---
 st.markdown("""
 <style>
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
-    .stDataFrame, div[data-testid="stTable"] { background-color: white !important; }
     table { border-collapse: collapse !important; width: 100%; }
-    th { background-color: #f0f2f6 !important; border: 1px solid #dee2e6 !important; text-align: center !important; color: black !important; }
-    td { border: 1px solid #dee2e6 !important; padding: 8px !important; background-color: white !important; }
+    th { background-color: #f0f2f6 !important; border: 1px solid #dee2e6 !important; text-align: center !important; color: black !important; font-weight: bold; }
+    td { border: 1px solid #dee2e6 !important; padding: 6px !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -33,7 +32,8 @@ def get_google_sheet_url(sheet_name):
     except:
         return None
 
-def colora_righe(row):
+# --- FUNZIONE COLORAZIONE GIRONI ---
+def colora_righe_gironi(row):
     valore_girone = ""
     for cella in row:
         if "Girone" in str(cella):
@@ -47,21 +47,43 @@ def colora_righe(row):
     }
     return [colori.get(valore_girone, '')] * len(row)
 
-# --- FUNZIONE CARICAMENTO DATI (Corretta per evitare errore NaN/JSON) ---
+# --- FUNZIONE COLORAZIONE TABELLONE FINALE (SICURA) ---
+def colora_tabellone_finale(df):
+    # Creiamo una maschera di stili vuota
+    style_df = pd.DataFrame('', index=df.index, columns=df.columns)
+    
+    current_section = "top" # Default per 1-8
+    
+    for i in range(len(df)):
+        fase_text = str(df.iloc[i, 0]).upper() # Legge la colonna "Fase"
+        
+        # Cambio sezione in base al testo trovato
+        if "9-16" in fase_text:
+            current_section = "bottom"
+        elif "1-8" in fase_text:
+            current_section = "top"
+            
+        # Determina il colore di base
+        if any(keyword in fase_text for keyword in ["POSIZIONI", "QUARTI DI", "SEMIFINALI", "FINALI POSIZ"]):
+            color = 'background-color: #eeeeee; font-weight: bold;' # Grigio intestazione
+        elif current_section == "top":
+            color = 'background-color: #f0f7ff;' # Azzurro molto tenue
+        else:
+            color = 'background-color: #fff5f0;' # Arancio/Rosa molto tenue
+            
+        style_df.iloc[i, :] = color
+        
+    return style_df
+
+# --- CARICAMENTO DATI ---
 @st.cache_data(ttl=30)
 def carica_dati(nome_foglio):
     try:
         url = get_google_sheet_url(nome_foglio)
-        # Leggiamo il CSV
-        df = pd.read_csv(url, header=None)
-
         if nome_foglio == TAB_FINALI:
-            # Prendiamo le colonne dalla A alla M (0:13)
-            df = df.iloc[:, 0:13]
-            # Impostiamo la riga 2 come testata
+            df = pd.read_csv(url, header=None).iloc[:, 0:13]
             df.columns = df.iloc[1].fillna('').astype(str).tolist()
             df = df.iloc[2:].reset_index(drop=True)
-            
         elif nome_foglio == TAB_GARE_GIRONI:
             df = pd.read_csv(url).iloc[:, :11]
         elif nome_foglio == TAB_CLASSIFICA:
@@ -69,13 +91,10 @@ def carica_dati(nome_foglio):
         else:
             df = pd.read_csv(url)
 
-        # --- SOLUZIONE ERRORE JSON: Trasformiamo tutto in stringa pulita ---
-        df = df.fillna('') # Sostituisce i NaN con vuoto
-        df = df.astype(str) # Forza tutto a stringa
-        # Rimuove il fastidioso .0 dai numeri
+        df = df.fillna('').astype(str)
         df = df.map(lambda x: x[:-2] if x.endswith('.0') else x)
         return df
-    except Exception as e:
+    except:
         return pd.DataFrame()
 
 # --- INTERFACCIA ---
@@ -90,22 +109,21 @@ tab_gare, tab1, tab2, tab3 = st.tabs(["🎾 Gare Gironi", "📊 Classifiche", "�
 with tab_gare:
     df_g = carica_dati(TAB_GARE_GIRONI)
     if not df_g.empty:
-        st.dataframe(df_g.style.apply(colora_righe, axis=1), use_container_width=True, hide_index=True)
+        st.dataframe(df_g.style.apply(colora_righe_gironi, axis=1), use_container_width=True, hide_index=True)
 
 with tab1:
     df_c = carica_dati(TAB_CLASSIFICA)
     if not df_c.empty:
-        st.dataframe(df_c.style.apply(colora_righe, axis=1), use_container_width=True, hide_index=True)
+        st.dataframe(df_c.style.apply(colora_righe_gironi, axis=1), use_container_width=True, hide_index=True)
 
 with tab2:
-    st.subheader("Tabellone Playoff")
     st.dataframe(carica_dati(TAB_PLAYOFF), use_container_width=True, hide_index=True)
 
 with tab3:
     st.subheader("Tabelloni di Posizionamento Finale")
     df_f = carica_dati(TAB_FINALI)
     if not df_f.empty:
-        # Visualizzazione sicura senza NaN
-        st.dataframe(df_f, use_container_width=True, hide_index=True)
+        # Applichiamo la colorazione differenziata
+        st.dataframe(df_f.style.apply(colora_tabellone_finale, axis=None), use_container_width=True, hide_index=True)
 
 st.caption(f"Ultimo aggiornamento: {datetime.datetime.now().strftime('%H:%M:%S')}")
