@@ -60,6 +60,7 @@ def stile_tabellone_finale(df):
         else:
             color = "background-color: #ffebee" if i % 2 == 0 else "background-color: #ffffff"
         
+        # Titoli in grigio
         if any(x in fase_val for x in ["POSIZIONI", "QUARTI", "SEMI", "FINALE", "MATCH"]):
             color = "background-color: #cfd8dc; font-weight: bold; color: black;"
         styles.iloc[i, :] = color
@@ -72,7 +73,7 @@ def carica_dati(nome_foglio):
         url = get_google_sheet_url(nome_foglio)
         df = pd.read_csv(url)
         
-        # Filtro colonne specifico
+        # Filtro colonne
         if nome_foglio == TAB_GARE_GIRONI: df = df.iloc[:, :11]
         elif nome_foglio == TAB_CLASSIFICA: df = df.iloc[:, :3]
         elif nome_foglio == TAB_PLAYOFF:
@@ -80,15 +81,19 @@ def carica_dati(nome_foglio):
                 idx = df.columns.get_loc("PERDENTE")
                 df = df.iloc[:, :idx + 1]
         elif nome_foglio == TAB_FINALI:
-            df = df.iloc[:, :10] # Include colonne punti
+            df = df.iloc[:, :10] 
             if not df.empty and 'Fase' not in str(df.columns):
                 df.columns = df.iloc[0]
                 df = df[1:].reset_index(drop=True)
 
-        # 🛑 SOLUZIONE AL SyntaxError: Trasformiamo TUTTO in testo subito
-        df = df.fillna('')
-        df = df.astype(str)
-        df = df.map(lambda x: x[:-2] if x.endswith('.0') else x.strip())
+        # 🛑 PULIZIA ANTI-CRASH 🛑
+        # 1. Rimuoviamo le colonne Unnamed residue
+        df = df.loc[:, ~df.columns.astype(str).str.contains('Unnamed|nan|^$')]
+        # 2. Trasformiamo tutto in stringa e gestiamo i valori nulli (NaN)
+        df = df.fillna('').astype(str)
+        # 3. Pulizia finale decimali e spazi
+        df = df.map(lambda x: x[:-2] if x.endswith('.0') else ("" if x.lower() == "nan" else x.strip()))
+        
         return df
     except:
         return pd.DataFrame()
@@ -113,11 +118,13 @@ with tab1:
         st.dataframe(df_c.style.apply(colora_righe, axis=1), use_container_width=True, hide_index=True)
 
 with tab2:
+    # Per i playoff usiamo dataframe semplice per evitare conflitti di stile con eventuali celle vuote
     st.dataframe(carica_dati(TAB_PLAYOFF), use_container_width=True, hide_index=True)
 
 with tab3:
     df_f = carica_dati(TAB_FINALI)
     if not df_f.empty:
+        # Applichiamo lo stile bicolore alternato
         st.dataframe(df_f.style.apply(stile_tabellone_finale, axis=None), use_container_width=True, hide_index=True)
 
 st.caption(f"Sincronizzato: {datetime.datetime.now().strftime('%H:%M:%S')}")
