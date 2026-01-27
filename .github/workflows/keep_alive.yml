@@ -1,40 +1,23 @@
-name: Wake Up Streamlit
+name: Wake Up Streamlit (Commit Method)
 
 on:
   schedule:
-    # Esegue l'azione ogni 15 minuti
-    - cron: '*/15 * * * *'
-  workflow_dispatch: # Permette di avviarlo anche manualmente per test
+    # Una volta ogni 24 ore è più che sufficiente per non farla addormentare
+    - cron: '0 10 * * *' 
+  workflow_dispatch:
 
 jobs:
-  wake-up:
+  keep-alive:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-
-      - name: Install Playwright
+      - name: Create empty commit
         run: |
-          pip install playwright
-          playwright install chromium
-
-      - name: Visit Streamlit App
-        run: |
-          python -c "
-          from playwright.sync_api import sync_playwright
-          with sync_playwright() as p:
-              browser = p.chromium.launch(headless=True)
-              page = browser.new_page()
-              # URL SISTEMATO QUI SOTTO
-              url = 'https://dashboard-one-wall-8nzuh5q9skdycad8o27lcd.streamlit.app/'
-              print(f'Visitando {url}...')
-              page.goto(url, wait_until='networkidle')
-              page.wait_for_timeout(5000) 
-              print('Pagina caricata con successo!')
-              browser.close()
-          "
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git commit --allow-empty -m "Keep-alive: sveglia automatica streamlit"
+          git push
