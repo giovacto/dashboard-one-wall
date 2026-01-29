@@ -98,7 +98,7 @@ def carica_dati(nome_foglio):
         return pd.DataFrame()
 
 # --- INTERFACCIA ---
-st.title("🏆 Torneo One Wall - Accademia Pallapugno")
+st.title("🏆 Fipap -Torneo One Wall - 2026")
 
 if st.sidebar.button("🔄 Aggiorna Dati Live"):
     st.cache_data.clear()
@@ -127,3 +127,4 @@ with tab3:
         st.dataframe(df_f.style.apply(colora_tabellone_finale, axis=None), use_container_width=True, hide_index=True)
 
 st.caption(f"Ultimo aggiornamento: {datetime.datetime.now().strftime('%H:%M:%S')}")
+
